@@ -1,0 +1,33 @@
+# 測試集損失
+model.eval()
+test_loss = 0
+with torch.no_grad():
+    for batch in test_loader:
+        input_ids, attention_mask, labels = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+        outputs = model(input_ids, attention_mask)
+        loss = loss_fn(outputs.squeeze(), labels)
+        test_loss += loss.item()
+
+avg_test_loss = test_loss / len(test_loader)
+print(f"Test Loss: {avg_test_loss:.4f}")
+
+# 測試單一標題
+def test_single_title(model, tokenizer, title, device):
+    model.eval()
+    # 分詞
+    tokens = tokenizer(title, padding=True, truncation=True, max_length=128, return_tensors="pt")
+    input_ids = tokens['input_ids'].to(device)
+    attention_mask = tokens['attention_mask'].to(device)
+    
+    # 前向傳播
+    with torch.no_grad():
+        output = model(input_ids, attention_mask)
+    
+    # 輸出結果
+    predicted_value = output.squeeze().item()
+    print(f"Title: {title}")
+    print(f"Predicted Normalized PV: {predicted_value:.4f}")
+
+# 測試範例
+test_title = "唾手可得的果實已消失！Google執行長：生成式AI發展放緩"
+test_single_title(model, tokenizer, test_title, device)
