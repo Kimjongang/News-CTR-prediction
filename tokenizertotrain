@@ -1,0 +1,130 @@
+from sklearn.model_selection import train_test_split
+from transformers import BertTokenizer
+
+# 分詞器路徑
+tokenizer_path = "C:/Users/liaug/Documents/data_C"
+tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
+
+# 批量分詞
+print("開始批量分詞...")
+tokens = tokenizer(
+    list(data_combined['標題']), 
+    padding=True, 
+    truncation=True, 
+    max_length=128, 
+    return_tensors="pt"
+)
+
+# 分割訓練集與測試集
+X_train, X_test, y_train, y_test = train_test_split(
+    tokens['input_ids'], 
+    data_combined['normalized_pv'].tolist(), 
+    test_size=0.2, 
+    random_state=42
+)
+
+# 確認數據形狀
+print(f"X_train.shape: {X_train.shape}")
+print(f"X_test.shape: {X_test.shape}")
+print(f"len(y_train): {len(y_train)}")
+print(f"len(y_test): {len(y_test)}")
+
+import torch
+import torch.nn as nn
+from transformers import BertModel
+
+# 定義模型
+class EnhancedBERTRegressorV5(nn.Module):
+    def __init__(self, bert_model_name):
+        super(EnhancedBERTRegressorV5, self).__init__()
+        self.bert = BertModel.from_pretrained(bert_model_name)
+        self.regressor = nn.Sequential(
+            nn.Linear(self.bert.config.hidden_size, 128),  # 新增的高層，128 個神經元
+            nn.LayerNorm(128),
+            nn.BatchNorm1d(128),
+            nn.GELU(),
+            nn.Dropout(0.4),  # 高層 Dropout
+            nn.Linear(128, 64),  # 原高層，減至 64 個神經元
+            nn.LayerNorm(64),
+            nn.BatchNorm1d(64),
+            nn.GELU(),
+            nn.Dropout(0.4),  # 高層 Dropout
+            nn.Linear(64, 32),  # 中層，減至 32 個神經元
+            nn.LayerNorm(32),
+            nn.BatchNorm1d(32),
+            nn.GELU(),
+            nn.Dropout(0.2),  # 中層 Dropout
+            nn.Linear(32, 1),  # 輸出層
+        )
+
+    def forward(self, input_ids, attention_mask):
+        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        cls_output = outputs.last_hidden_state[:, 0, :]
+        return self.regressor(cls_output)
+
+# 初始化模型
+bert_model_name = "C:/Users/liaug/Documents/data_C"
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = EnhancedBERTRegressorV5(bert_model_name).to(device)
+
+# 定義損失函數和優化器
+loss_fn = nn.MSELoss()
+optimizer = torch.optim.AdamW(model.parameters(), lr=5e-6)
+
+print(f"Using device: {device}")
+print(f"Model is on GPU: {next(model.parameters()).is_cuda}")
+
+
+from torch.utils.data import DataLoader, TensorDataset
+
+# 建立 TensorDataset
+train_dataset = TensorDataset(
+    X_train, 
+    tokens['attention_mask'][:len(X_train)],  # 對應訓練集的 attention mask
+    torch.tensor(y_train, dtype=torch.float)
+)
+test_dataset = TensorDataset(
+    X_test, 
+    tokens['attention_mask'][len(X_train):],  # 對應測試集的 attention mask
+    torch.tensor(y_test, dtype=torch.float)
+)
+
+# 建立 DataLoader
+batch_size = 64  # 調整批次大小
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=batch_size)
+
+# 訓練模型
+epochs = 30
+for epoch in range(epochs):
+    model.train()
+    train_loss = 0
+    for batch in train_loader:
+        input_ids, attention_mask, labels = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+
+        # 前向傳播
+        outputs = model(input_ids, attention_mask)
+        loss = loss_fn(outputs.squeeze(), labels)
+
+        # 反向傳播
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        train_loss += loss.item()
+
+    # 每 2 次檢查測試集損失
+    if (epoch + 1) % 2 == 0:
+        model.eval()
+        test_loss = 0
+        with torch.no_grad():
+            for batch in test_loader:
+                input_ids, attention_mask, labels = batch[0].to(device), batch[1].to(device), batch[2].to(device)
+                outputs = model(input_ids, attention_mask)
+                loss = loss_fn(outputs.squeeze(), labels)
+                test_loss += loss.item()
+        avg_test_loss = test_loss / len(test_loader)
+        print(f"Epoch {epoch+1}/{epochs}, Test Loss: {avg_test_loss:.4f}")
+
+    print(f"Epoch {epoch+1}/{epochs}, Training Loss: {train_loss / len(train_loader):.4f}")
+
