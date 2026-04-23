@@ -1,0 +1,31 @@
+# 正規化函數
+def improved_normalize_pv(pv):
+    if pv >= 13000:  # 超高值區域
+        return 1.0
+    elif pv >= 8000:  # 高值區域
+        return 0.9 + 0.1 * (pv - 10000) / 5000
+    elif pv >= 5000:  # 中高區域
+        return 0.8 + 0.1 * (pv - 5000) / 5000
+    elif pv >= 3000:  # 中高區域
+        return 0.7 + 0.1 * (pv - 3000) / 2000
+    elif pv >= 1000:  # 中間區域
+        return 0.5 + 0.2 * (pv - 1000) / 2000
+    elif pv >= 500:  # 中低區域
+        return 0.3 + 0.2 * (pv - 500) / 500
+    elif pv >= 200:  # 低值區域
+        return 0.2 + 0.1 * (pv - 200) / 300
+    elif pv >= 150:
+        return 0.1 + 0.1 * (pv - 150) / 50
+    elif pv >= 100:
+        return 0.05 + 0.05 * (pv - 100) / 50
+    elif pv >= 50:
+        return 0.01 + 0.04 * (pv - 50) / 50
+    else:
+        return 0.0  # 最低值
+
+# 正規化總PV
+data_combined['normalized_pv'] = data_combined['總PV'].apply(improved_normalize_pv)
+
+# 處理後數據範例
+print("正規化完成，數據範例：")
+print(data_combined[['標題', '總PV', 'normalized_pv']].head())
