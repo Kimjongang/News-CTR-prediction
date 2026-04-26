@@ -1,6 +1,6 @@
 # News CTR Prediction (新聞點閱率預測模型)
 
-本專案旨在建立一個可於「新聞發布前」預測點閱率（CTR, Click-Through Rate）的模型，並結合多模態特徵與檢索增強（Retrieval-Augmented Modeling）方法，提升熱門新聞的預測能力。
+本專案旨在建立一個可於「新聞撰寫前」預測點閱率（CTR, Click-Through Rate）的模型，並結合多模態特徵與檢索增強（Retrieval-Augmented Modeling）方法，提升熱門新聞的預測能力。
 
 ## 單篇新聞產製流程
 
